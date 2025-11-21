@@ -1,1 +1,1 @@
-Basic speedometer minigame made with Gemini 3.0
+Basic speedometer minigame made with Gemini 3.0 PRO

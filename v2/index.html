@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Animation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background-color: #111827; /* Tailwind gray-900 */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow-x: hidden;
+            color: #e5e7eb;
+        }
+
+        /* Dashboard Container */
+        .dashboard {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 1rem;
+            padding: 20px;
+            background: #1f2937;
+            border-radius: 2rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid #374151;
+        }
+
+        @media (max-width: 800px) {
+            .dashboard {
+                flex-direction: column;
+                transform: scale(0.8);
+            }
+        }
+
+        /* Common Gauge Styles */
+        .gauge-wrapper {
+            position: relative;
+            width: 260px;
+            height: 260px;
+            border-radius: 50%;
+            background: radial-gradient(circle at center, #1f2937 0%, #0f172a 70%);
+            box-shadow: 
+                inset 0 0 20px rgba(0,0,0, 0.8),
+                0 0 10px rgba(0,0,0, 0.5);
+            transition: box-shadow 0.2s ease, border-color 0.2s ease; /* Smooth glow transition */
+            border: 1px solid transparent; /* Prepare for border change */
+        }
+
+        .gauge-face {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Text & Lines */
+        text {
+            font-family: 'Orbitron', sans-serif;
+            fill: #9ca3af;
+            font-size: 11px;
+            font-weight: bold;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+
+        .tick { stroke: #4b5563; stroke-width: 2; }
+        .tick.major { stroke: #e5e7eb; stroke-width: 3; }
+
+        .arc-bg {
+            fill: none;
+            stroke: #374151;
+            stroke-width: 8;
+            stroke-linecap: round;
+        }
+
+        /* Specific Arcs */
+        .arc-yellow {
+            fill: none;
+            stroke: #fbbf24; /* amber-400 */
+            stroke-width: 8;
+            opacity: 0.6;
+        }
+        
+        .arc-green {
+            fill: none;
+            stroke: #22c55e; /* green-500 */
+            stroke-width: 12; /* Slightly thicker to pop */
+            stroke-linecap: butt;
+        }
+
+        /* Needle */
+        .needle-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            transition: transform 0.1s linear; 
+        }
+
+        .needle {
+            position: absolute;
+            bottom: -5px;
+            left: -2px;
+            width: 4px;
+            height: 90px;
+            background: #ef4444;
+            border-radius: 50% 50% 2px 2px;
+            box-shadow: 0 0 5px rgba(239, 68, 68, 0.5);
+        }
+
+        .center-cap {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 16px;
+            height: 16px;
+            background: #374151;
+            border: 2px solid #1f2937;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+
+        /* Digital Readout inside gauge */
+        .readout {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+        }
+        .value { font-size: 1.8rem; font-weight: 700; line-height: 1; }
+        .unit { font-size: 0.7rem; color: #6b7280; display: block; margin-top: 2px; }
+
+        /* Gear Indicator Panel */
+        .gear-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100px;
+            height: 120px;
+            background: #111827;
+            border: 2px solid #374151;
+            border-radius: 10px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+        }
+
+        .gear-label {
+            color: #6b7280;
+            font-size: 0.8rem;
+            margin-bottom: 5px;
+        }
+
+        .gear-display {
+            font-size: 3.5rem;
+            font-weight: bold;
+            color: #3b82f6; /* blue-500 */
+            text-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+        }
+
+        /* --- GLOW EFFECTS --- */
+
+        /* Danger (Red) - Speedometer > 100 */
+        .gauge-wrapper.danger-zone {
+            box-shadow: 0 0 30px rgba(239, 68, 68, 0.5), inset 0 0 20px rgba(0,0,0, 0.5);
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+        .danger-zone .value { color: #ef4444; text-shadow: 0 0 10px rgba(239, 68, 68, 0.6); }
+
+        /* Warning (Yellow) - RPM Shift Range */
+        .gauge-wrapper.glow-yellow {
+            box-shadow: 0 0 30px rgba(251, 191, 36, 0.5), inset 0 0 20px rgba(0,0,0, 0.5);
+            border-color: rgba(251, 191, 36, 0.4);
+        }
+        .glow-yellow .value { color: #fbbf24; text-shadow: 0 0 10px rgba(251, 191, 36, 0.6); }
+
+        /* Optimal (Green) - RPM Sweet Spot */
+        .gauge-wrapper.glow-green {
+            box-shadow: 0 0 35px rgba(34, 197, 94, 0.6), inset 0 0 20px rgba(0,0,0, 0.5);
+            border-color: rgba(34, 197, 94, 0.5);
+        }
+        .glow-green .value { color: #22c55e; text-shadow: 0 0 10px rgba(34, 197, 94, 0.8); }
+
+
+        /* Controls Area */
+        .controls {
+            margin-top: 2rem;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .control-btn {
+            background: linear-gradient(to bottom, #374151, #1f2937);
+            border: 1px solid #4b5563;
+            color: #e5e7eb;
+            padding: 0.8rem 1.5rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            user-select: none;
+            text-transform: uppercase;
+            min-width: 100px;
+        }
+
+        .control-btn:active, .control-btn.active {
+            transform: translateY(2px);
+            background: #1f2937;
+            border-color: #3b82f6;
+            color: #3b82f6;
+        }
+
+        .accel-btn {
+            height: 100%;
+            font-size: 1.2rem;
+            border-color: #ef4444;
+        }
+        .accel-btn:active, .accel-btn.active {
+            border-color: #ef4444;
+            color: #ef4444;
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+        }
+
+        .instructions {
+            margin-top: 1rem;
+            font-size: 0.8rem;
+            color: #6b7280;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard">
+        
+        <!-- RPM GAUGE (TACHOMETER) -->
+        <div class="gauge-wrapper" id="rpmGauge">
+            <svg class="gauge-face" viewBox="0 0 260 260">
+                <g id="rpmArcs"></g>
+                <g id="rpmTicks"></g>
+            </svg>
+            <div class="needle-container" id="rpmNeedle">
+                <div class="needle"></div>
+            </div>
+            <div class="center-cap"></div>
+            <div class="readout">
+                <span class="value" id="rpmValue">0</span>
+                <span class="unit">RPM</span>
+            </div>
+        </div>
+
+        <!-- GEAR INDICATOR -->
+        <div class="gear-panel">
+            <span class="gear-label">GEAR</span>
+            <span class="gear-display" id="gearValue">N</span>
+        </div>
+
+        <!-- SPEEDOMETER -->
+        <div class="gauge-wrapper" id="speedGauge">
+            <svg class="gauge-face" viewBox="0 0 260 260">
+                <g id="speedArcs"></g>
+                <g id="speedTicks"></g>
+            </svg>
+            <div class="needle-container" id="speedNeedle">
+                <div class="needle"></div>
+            </div>
+            <div class="center-cap"></div>
+            <div class="readout">
+                <span class="value" id="speedValue">0</span>
+                <span class="unit">KM/H</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="btn-group">
+            <button class="control-btn" id="shiftUpBtn">Shift ▲</button>
+            <button class="control-btn" id="shiftDownBtn">Shift ▼</button>
+        </div>
+        <button class="control-btn accel-btn" id="accelBtn">GAS</button>
+    </div>
+    <div class="instructions">
+        Controls: <b>SPACE</b> to Accelerate, <b>UP/DOWN ARROWS</b> to Shift
+    </div>
+
+    <script>
+        // --- Constants & Config ---
+        const CENTER = 130;
+        const RADIUS = 100;
+        const START_ANGLE = 135;
+        const SWEEP_ANGLE = 270;
+
+        // RPM Config
+        const MAX_RPM = 8000; // UPGRADED to 8k
+        // Zones for RPM (Eco shifting)
+        const RPM_YELLOW_START = 2000;
+        const RPM_YELLOW_END = 3000;
+        const RPM_GREEN_POINT = 2500; // The sweet spot
+        const RPM_GREEN_TOLERANCE = 100; // +/- range for green glow
+
+        // Speed Config
+        const MAX_DISPLAY_SPEED = 200;
+
+        // Gear Ratios (represented as Top Speed in KM/H at MAX_RPM of 8000)
+        // We want to hit 120km/h at 8000RPM in 5th.
+        // Ratios scaled to keep similar 'feeling' but adapted for 8k engine.
+        const GEAR_TOPS = {
+            1: 30,   // Low gear, high torque
+            2: 55,
+            3: 80,
+            4: 100,
+            5: 120   // Target top speed
+        };
+        const MAX_GEAR = 5;
+
+        // --- DOM Elements ---
+        const rpmGaugeWrapper = document.getElementById('rpmGauge');
+        const rpmTicksGroup = document.getElementById('rpmTicks');
+        const rpmArcsGroup = document.getElementById('rpmArcs');
+        const rpmNeedle = document.getElementById('rpmNeedle');
+        const rpmValueText = document.getElementById('rpmValue');
+        
+        const speedTicksGroup = document.getElementById('speedTicks');
+        const speedArcsGroup = document.getElementById('speedArcs');
+        const speedNeedle = document.getElementById('speedNeedle');
+        const speedValueText = document.getElementById('speedValue');
+        const speedGaugeWrapper = document.getElementById('speedGauge');
+
+        const gearValueText = document.getElementById('gearValue');
+        const accelBtn = document.getElementById('accelBtn');
+        const shiftUpBtn = document.getElementById('shiftUpBtn');
+        const shiftDownBtn = document.getElementById('shiftDownBtn');
+
+        // --- Graphics Helpers ---
+        function polarToCartesian(radius, angleInDegrees) {
+            const angleInRadians = (angleInDegrees) * Math.PI / 180.0;
+            return {
+                x: CENTER + (radius * Math.cos(angleInRadians)),
+                y: CENTER + (radius * Math.sin(angleInRadians))
+            };
+        }
+
+        function describeArc(radius, startAngle, endAngle) {
+            const start = polarToCartesian(radius, startAngle);
+            const end = polarToCartesian(radius, endAngle);
+            const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+            return ["M", start.x, start.y, "A", radius, radius, 0, largeArcFlag, 1, end.x, end.y].join(" ");
+        }
+
+        function valueToAngle(value, maxValue) {
+            return START_ANGLE + ((value / maxValue) * SWEEP_ANGLE);
+        }
+
+        // --- Render Functions ---
+        
+        function renderTachometer() {
+            // 1. Background Arc
+            const bgPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            bgPath.setAttribute("d", describeArc(RADIUS, START_ANGLE, START_ANGLE + SWEEP_ANGLE));
+            bgPath.setAttribute("class", "arc-bg");
+            rpmArcsGroup.appendChild(bgPath);
+
+            // REMOVED: Yellow and Green zones on the face as requested for a cleaner look.
+            // The outer glow logic in updateUI() still handles the indicators.
+
+            // 4. Ticks (Now up to 8000)
+            for (let i = 0; i <= MAX_RPM; i += 500) { // Step 500
+                const angle = valueToAngle(i, MAX_RPM);
+                const rads = angle * Math.PI / 180;
+                const isMajor = i % 1000 === 0;
+                const len = isMajor ? 12 : 6;
+                
+                const x1 = CENTER + (RADIUS - len) * Math.cos(rads);
+                const y1 = CENTER + (RADIUS - len) * Math.sin(rads);
+                const x2 = CENTER + RADIUS * Math.cos(rads);
+                const y2 = CENTER + RADIUS * Math.sin(rads);
+
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", x1);
+                line.setAttribute("y1", y1);
+                line.setAttribute("x2", x2);
+                line.setAttribute("y2", y2);
+                line.setAttribute("class", isMajor ? "tick major" : "tick");
+                rpmTicksGroup.appendChild(line);
+
+                if (isMajor) {
+                    const tx = CENTER + (RADIUS - 25) * Math.cos(rads);
+                    const ty = CENTER + (RADIUS - 25) * Math.sin(rads);
+                    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("x", tx);
+                    text.setAttribute("y", ty);
+                    text.textContent = i / 1000; // Display 1, 2... 8
+                    rpmTicksGroup.appendChild(text);
+                }
+            }
+        }
+
+        function renderSpeedometer() {
+            // Background Arc
+            const bgPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            bgPath.setAttribute("d", describeArc(RADIUS, START_ANGLE, START_ANGLE + SWEEP_ANGLE));
+            bgPath.setAttribute("class", "arc-bg");
+            speedArcsGroup.appendChild(bgPath);
+
+            // Ticks
+            for (let i = 0; i <= MAX_DISPLAY_SPEED; i += 10) {
+                const angle = valueToAngle(i, MAX_DISPLAY_SPEED);
+                const rads = angle * Math.PI / 180;
+                const isMajor = i % 20 === 0;
+                const len = isMajor ? 12 : 6;
+                
+                const x1 = CENTER + (RADIUS - len) * Math.cos(rads);
+                const y1 = CENTER + (RADIUS - len) * Math.sin(rads);
+                const x2 = CENTER + RADIUS * Math.cos(rads);
+                const y2 = CENTER + RADIUS * Math.sin(rads);
+
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", x1);
+                line.setAttribute("y1", y1);
+                line.setAttribute("x2", x2);
+                line.setAttribute("y2", y2);
+                line.setAttribute("class", isMajor ? "tick major" : "tick");
+                speedTicksGroup.appendChild(line);
+
+                if (isMajor) {
+                    const tx = CENTER + (RADIUS - 25) * Math.cos(rads);
+                    const ty = CENTER + (RADIUS - 25) * Math.sin(rads);
+                    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("x", tx);
+                    text.setAttribute("y", ty);
+                    text.textContent = i;
+                    speedTicksGroup.appendChild(text);
+                }
+            }
+        }
+
+        renderTachometer();
+        renderSpeedometer();
+
+        // --- Physics Engine ---
+
+        let state = {
+            rpm: 0,
+            speed: 0, // KM/H
+            gear: 1,
+            gasPressed: false
+        };
+
+        // Physics Constants
+        const RPM_ACCEL = 120; // Increased RPM gain per frame since scale is larger
+        const RPM_DECAY = 50; // Friction
+        const MIN_IDLE = 800; // Idle RPM
+
+        function updatePhysics() {
+            const topSpeedCurrentGear = GEAR_TOPS[state.gear];
+            
+            // 1. Calculate Target RPM based on input
+            if (state.gasPressed) {
+                state.rpm += RPM_ACCEL;
+            } else {
+                state.rpm -= RPM_DECAY;
+            }
+
+            // 2. Idle Handling
+            if (state.rpm < MIN_IDLE) state.rpm = MIN_IDLE;
+
+            // 3. Rev Limiter
+            if (state.rpm > MAX_RPM) {
+                state.rpm = MAX_RPM - 150; // Hard cut limiter
+            }
+
+            // 4. Calculate Speed based on RPM and Gear Ratio
+            let calculatedSpeed = (state.rpm / MAX_RPM) * topSpeedCurrentGear;
+
+            state.speed = calculatedSpeed;
+
+            updateUI();
+            requestAnimationFrame(updatePhysics);
+        }
+
+        function updateUI() {
+            // Update RPM Needle
+            const rpmAngle = valueToAngle(state.rpm, MAX_RPM);
+            rpmNeedle.style.transform = `translate(-50%, -50%) rotate(${rpmAngle + 90}deg)`;
+            
+            // Format RPM text - Exact Integer
+            rpmValueText.textContent = Math.round(state.rpm);
+
+            // Update Speed Needle
+            const speedAngle = valueToAngle(state.speed, MAX_DISPLAY_SPEED);
+            speedNeedle.style.transform = `translate(-50%, -50%) rotate(${speedAngle + 90}deg)`;
+            speedValueText.textContent = Math.floor(state.speed);
+
+            // Gear
+            gearValueText.textContent = state.gear;
+
+            // --- GLOW LOGIC ---
+            
+            // 1. Speedometer Red Glow (>100 km/h)
+            if (state.speed > 100) {
+                speedGaugeWrapper.classList.add('danger-zone');
+            } else {
+                speedGaugeWrapper.classList.remove('danger-zone');
+            }
+
+            // 2. RPM Glows (Priority: Green > Yellow > None)
+            const r = state.rpm;
+            
+            // Remove all first
+            rpmGaugeWrapper.classList.remove('glow-green', 'glow-yellow');
+
+            if (r >= RPM_GREEN_POINT - RPM_GREEN_TOLERANCE && r <= RPM_GREEN_POINT + RPM_GREEN_TOLERANCE) {
+                // Sweet spot (2400 - 2600)
+                rpmGaugeWrapper.classList.add('glow-green');
+            } else if (r >= RPM_YELLOW_START && r <= RPM_YELLOW_END) {
+                // Shift Range (2000 - 3000), excluding the green center
+                rpmGaugeWrapper.classList.add('glow-yellow');
+            }
+        }
+
+        // --- Interaction ---
+
+        function shiftGear(dir) {
+            const newGear = state.gear + dir;
+            if (newGear < 1 || newGear > MAX_GEAR) return;
+
+            // Simulate Shift: RPM change
+            const oldTop = GEAR_TOPS[state.gear];
+            const newTop = GEAR_TOPS[newGear];
+            
+            state.gear = newGear;
+            
+            // Calculate new RPM to maintain current speed
+            let newRPM = state.rpm * (oldTop / newTop);
+            
+            // Clamp RPM
+            if (newRPM > MAX_RPM) newRPM = MAX_RPM;
+            if (newRPM < MIN_IDLE) newRPM = MIN_IDLE;
+            
+            state.rpm = newRPM;
+            
+            // Visual feedback
+            if (dir > 0) {
+                shiftUpBtn.classList.add('active');
+                setTimeout(() => shiftUpBtn.classList.remove('active'), 100);
+            } else {
+                shiftDownBtn.classList.add('active');
+                setTimeout(() => shiftDownBtn.classList.remove('active'), 100);
+            }
+        }
+
+        // Event Listeners
+        const setGas = (pressed) => {
+            state.gasPressed = pressed;
+            if (pressed) accelBtn.classList.add('active');
+            else accelBtn.classList.remove('active');
+        };
+
+        accelBtn.addEventListener('mousedown', () => setGas(true));
+        accelBtn.addEventListener('mouseup', () => setGas(false));
+        accelBtn.addEventListener('touchstart', (e) => { e.preventDefault(); setGas(true); });
+        accelBtn.addEventListener('touchend', (e) => { e.preventDefault(); setGas(false); });
+
+        shiftUpBtn.addEventListener('click', () => shiftGear(1));
+        shiftDownBtn.addEventListener('click', () => shiftGear(-1));
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && !e.repeat) setGas(true);
+            if (e.code === 'ArrowUp' && !e.repeat) shiftGear(1);
+            if (e.code === 'ArrowDown' && !e.repeat) shiftGear(-1);
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') setGas(false);
+        });
+
+        // Start
+        requestAnimationFrame(updatePhysics);
+
+    </script>
+</body>
+</html>

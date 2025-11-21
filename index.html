@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speedometer Animation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background-color: #111827; /* Tailwind gray-900 */
+            display: flex;
+            flex-direction: column; /* Stack gauge and button */
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            gap: 2rem; /* Space between gauge and button */
+        }
+
+        /* The main gauge container */
+        .gauge-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: radial-gradient(circle at center, #1f2937 0%, #111827 70%);
+            box-shadow: 
+                0 0 20px rgba(0, 0, 0, 0.8),
+                inset 0 0 20px rgba(0,0,0, 0.5);
+            transition: box-shadow 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        /* The outer rim glow effect - triggered via JS */
+        .gauge-container.danger-zone {
+            box-shadow: 
+                0 0 30px rgba(239, 68, 68, 0.6),
+                inset 0 0 20px rgba(0,0,0, 0.5);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        /* SVG styling */
+        .gauge-face {
+            width: 100%;
+            height: 100%;
+        }
+
+        text {
+            font-family: 'Orbitron', sans-serif;
+            fill: #9ca3af; /* gray-400 */
+            font-size: 12px;
+            font-weight: bold;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+
+        .tick {
+            stroke: #4b5563; /* gray-600 */
+            stroke-width: 2;
+        }
+
+        .tick.major {
+            stroke: #e5e7eb; /* gray-200 */
+            stroke-width: 3;
+        }
+
+        .arc-bg {
+            fill: none;
+            stroke: #374151; /* gray-700 */
+            stroke-width: 10;
+            stroke-linecap: round;
+        }
+
+        .arc-danger {
+            fill: none;
+            stroke: #ef4444; /* red-500 */
+            stroke-width: 10;
+            stroke-linecap: round;
+            opacity: 0.3;
+            transition: opacity 0.3s, filter 0.3s;
+        }
+        
+        .danger-zone .arc-danger {
+            opacity: 1;
+            filter: drop-shadow(0 0 5px #ef4444);
+        }
+
+        /* Needle */
+        .needle-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            transition: transform 0.1s linear; /* Smooth updates from JS */
+        }
+
+        .needle {
+            position: absolute;
+            bottom: -5px; /* Offset for pivot center */
+            left: -3px;
+            width: 6px;
+            height: 110px;
+            background: #ef4444;
+            border-radius: 50% 50% 2px 2px;
+            transform-origin: 50% 100%; /* Pivot at bottom */
+            box-shadow: 0 0 5px rgba(239, 68, 68, 0.5);
+        }
+
+        .center-cap {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            background: #374151;
+            border: 2px solid #1f2937;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        /* Digital Readout */
+        .readout {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            color: #e5e7eb;
+        }
+
+        .speed-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            display: block;
+            line-height: 1;
+        }
+        
+        .danger-zone .speed-value {
+            color: #ef4444;
+            text-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+        }
+
+        .unit {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-top: 4px;
+            display: block;
+        }
+
+        /* Control Button */
+        .control-btn {
+            background: linear-gradient(to bottom, #374151, #1f2937);
+            border: 1px solid #4b5563;
+            color: #e5e7eb;
+            padding: 1rem 2rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: all 0.1s;
+            user-select: none;
+            -webkit-user-select: none;
+            outline: none;
+        }
+
+        .control-btn:active, .control-btn.active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            background: linear-gradient(to bottom, #1f2937, #111827);
+            border-color: #ef4444;
+            color: #ef4444;
+            text-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+        }
+        
+        .hint {
+            color: #6b7280;
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="gauge-container" id="gaugeContainer">
+        <!-- SVG Face -->
+        <svg class="gauge-face" viewBox="0 0 300 300">
+            <!-- Background Arcs (Generated by JS now for perfect alignment) -->
+            <g id="arcsGroup"></g>
+
+            <!-- Ticks & Numbers will be generated by JS to be precise -->
+            <g id="ticksGroup"></g>
+        </svg>
+
+        <!-- Needle -->
+        <div class="needle-container" id="needleContainer">
+            <div class="needle"></div>
+        </div>
+        
+        <!-- Center Cap -->
+        <div class="center-cap"></div>
+
+        <!-- Digital Readout -->
+        <div class="readout">
+            <span class="speed-value" id="speedValue">0</span>
+            <span class="unit">KM/H</span>
+        </div>
+    </div>
+
+    <div style="text-align: center;">
+        <button class="control-btn" id="accelBtn">ACCELERATE</button>
+        <div class="hint">Hold SPACEBAR or Button</div>
+    </div>
+
+    <script>
+        const gaugeContainer = document.getElementById('gaugeContainer');
+        const needleContainer = document.getElementById('needleContainer');
+        const speedValueText = document.getElementById('speedValue');
+        const ticksGroup = document.getElementById('ticksGroup');
+        const arcsGroup = document.getElementById('arcsGroup');
+        const accelBtn = document.getElementById('accelBtn');
+
+        // --- Configuration ---
+        const MAX_GAUGE_SPEED = 200; // The visual max on the dial
+        const TARGET_TOP_SPEED = 120; // The max speed the car can actually go
+        const START_ANGLE = 135; // degrees
+        const SWEEP_ANGLE = 270; // degrees
+        const RADIUS = 120;
+        const CENTER = 150;
+
+        // --- Helper: Polar to Cartesian ---
+        function polarToCartesian(centerX, centerY, radius, angleInDegrees) {
+            const angleInRadians = (angleInDegrees) * Math.PI / 180.0;
+            return {
+                x: centerX + (radius * Math.cos(angleInRadians)),
+                y: centerY + (radius * Math.sin(angleInRadians))
+            };
+        }
+
+        // --- Helper: Describe SVG Arc ---
+        function describeArc(x, y, radius, startAngle, endAngle) {
+            const start = polarToCartesian(x, y, radius, startAngle);
+            const end = polarToCartesian(x, y, radius, endAngle);
+            const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+            
+            return [
+                "M", start.x, start.y, 
+                "A", radius, radius, 0, largeArcFlag, 1, end.x, end.y
+            ].join(" ");
+        }
+
+        // --- Draw Arcs ---
+        function drawArcs() {
+            // 1. Background Arc (Full range)
+            const bgPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            bgPath.setAttribute("d", describeArc(CENTER, CENTER, RADIUS, START_ANGLE, START_ANGLE + SWEEP_ANGLE));
+            bgPath.setAttribute("class", "arc-bg");
+            arcsGroup.appendChild(bgPath);
+        }
+
+        // --- Generate Ticks ---
+        function createTicks() {
+            drawArcs(); // Draw arcs before ticks
+            const totalTicks = 20; // 0, 10, 20... 200 (21 major steps actually)
+            const step = MAX_GAUGE_SPEED / totalTicks;
+
+            for (let i = 0; i <= MAX_GAUGE_SPEED; i += 10) {
+                // Calculate angle for this speed
+                const progress = i / MAX_GAUGE_SPEED;
+                const angle = START_ANGLE + (progress * SWEEP_ANGLE);
+                const radians = (angle * Math.PI) / 180;
+
+                // Inner and outer points for ticks
+                const isMajor = i % 20 === 0;
+                const tickLength = isMajor ? 15 : 8;
+                const innerR = RADIUS - tickLength;
+                const outerR = RADIUS;
+
+                const x1 = CENTER + innerR * Math.cos(radians);
+                const y1 = CENTER + innerR * Math.sin(radians);
+                const x2 = CENTER + outerR * Math.cos(radians);
+                const y2 = CENTER + outerR * Math.sin(radians);
+
+                // Create Tick Line
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", x1);
+                line.setAttribute("y1", y1);
+                line.setAttribute("x2", x2);
+                line.setAttribute("y2", y2);
+                line.setAttribute("class", isMajor ? "tick major" : "tick");
+                ticksGroup.appendChild(line);
+
+                // Create Number Text (only for major ticks)
+                if (isMajor) {
+                    const textR = RADIUS - 30;
+                    const tx = CENTER + textR * Math.cos(radians);
+                    const ty = CENTER + textR * Math.sin(radians);
+                    
+                    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("x", tx);
+                    text.setAttribute("y", ty);
+                    text.textContent = i;
+                    ticksGroup.appendChild(text);
+                }
+            }
+        }
+
+        createTicks();
+
+        // --- Physics & Interaction ---
+        
+        let currentSpeed = 0;
+        let isGasPressed = false;
+        
+        // Physics constants
+        const ACCELERATION_RATE = 1.2; // KM/H per frame
+        const DECELERATION_RATE = 0.8; // KM/H per frame (friction)
+        
+        // Input Handling
+        function setGas(pressed) {
+            isGasPressed = pressed;
+            if (pressed) {
+                accelBtn.classList.add('active');
+            } else {
+                accelBtn.classList.remove('active');
+            }
+        }
+
+        // Mouse/Touch Events for Button
+        accelBtn.addEventListener('mousedown', () => setGas(true));
+        accelBtn.addEventListener('mouseup', () => setGas(false));
+        accelBtn.addEventListener('mouseleave', () => setGas(false));
+        
+        accelBtn.addEventListener('touchstart', (e) => { e.preventDefault(); setGas(true); });
+        accelBtn.addEventListener('touchend', (e) => { e.preventDefault(); setGas(false); });
+
+        // Keyboard Events (Spacebar)
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && !e.repeat) {
+                setGas(true);
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') {
+                setGas(false);
+            }
+        });
+
+        // Animation Loop
+        function animate() {
+            if (isGasPressed) {
+                // Accelerate
+                currentSpeed += ACCELERATION_RATE;
+                if (currentSpeed > TARGET_TOP_SPEED) {
+                    currentSpeed = TARGET_TOP_SPEED;
+                }
+            } else {
+                // Decelerate
+                currentSpeed -= DECELERATION_RATE;
+                if (currentSpeed < 0) {
+                    currentSpeed = 0;
+                }
+            }
+
+            updateGauge(currentSpeed);
+            requestAnimationFrame(animate);
+        }
+
+        function updateGauge(speed) {
+            // 1. Calculate Angle
+            // Note: We map speed against MAX_GAUGE_SPEED (200), not TOP_SPEED (120)
+            // because the needle needs to point to the correct number on the dial.
+            const progress = speed / MAX_GAUGE_SPEED;
+            const angle = START_ANGLE + (progress * SWEEP_ANGLE);
+            
+            // 2. Rotate Needle
+            // +90deg correction as discussed previously
+            needleContainer.style.transform = `translate(-50%, -50%) rotate(${angle + 90}deg)`;
+
+            // 3. Update Text
+            speedValueText.textContent = Math.round(speed);
+
+            // 4. Glow Effect (Red > 100)
+            if (speed > 100) {
+                gaugeContainer.classList.add('danger-zone');
+            } else {
+                gaugeContainer.classList.remove('danger-zone');
+            }
+        }
+
+        // Start the loop
+        animate();
+
+    </script>
+</body>
+</html>

@@ -308,7 +308,9 @@
         const SWEEP_ANGLE = 270;
 
         // RPM Config
-        const MAX_RPM = 8000; // UPGRADED to 8k
+        const MAX_RPM_GAUGE = 8000; // VISUAL scale max
+        const REV_LIMIT = 5000;     // PHYSICS/ENGINE limit
+
         // Zones for RPM (Eco shifting)
         const RPM_YELLOW_START = 2000;
         const RPM_YELLOW_END = 3000;
@@ -318,15 +320,13 @@
         // Speed Config
         const MAX_DISPLAY_SPEED = 200;
 
-        // Gear Ratios (represented as Top Speed in KM/H at MAX_RPM of 8000)
-        // We want to hit 120km/h at 8000RPM in 5th.
-        // Ratios scaled to keep similar 'feeling' but adapted for 8k engine.
+        // Gear Ratios (represented as Speed in KM/H at REV_LIMIT of 5000)
         const GEAR_TOPS = {
             1: 30,   // Low gear, high torque
             2: 55,
             3: 80,
             4: 100,
-            5: 120   // Target top speed
+            5: 120   // Hit 120 km/h exactly at 5000 RPM
         };
         const MAX_GEAR = 5;
 
@@ -377,12 +377,9 @@
             bgPath.setAttribute("class", "arc-bg");
             rpmArcsGroup.appendChild(bgPath);
 
-            // REMOVED: Yellow and Green zones on the face as requested for a cleaner look.
-            // The outer glow logic in updateUI() still handles the indicators.
-
-            // 4. Ticks (Now up to 8000)
-            for (let i = 0; i <= MAX_RPM; i += 500) { // Step 500
-                const angle = valueToAngle(i, MAX_RPM);
+            // 4. Ticks (Use Visual Scale MAX_RPM_GAUGE)
+            for (let i = 0; i <= MAX_RPM_GAUGE; i += 500) { // Step 500
+                const angle = valueToAngle(i, MAX_RPM_GAUGE);
                 const rads = angle * Math.PI / 180;
                 const isMajor = i % 1000 === 0;
                 const len = isMajor ? 12 : 6;
@@ -464,7 +461,7 @@
         };
 
         // Physics Constants
-        const RPM_ACCEL = 120; // Increased RPM gain per frame since scale is larger
+        const RPM_ACCEL = 120; // RPM gain per frame
         const RPM_DECAY = 50; // Friction
         const MIN_IDLE = 800; // Idle RPM
 
@@ -481,13 +478,14 @@
             // 2. Idle Handling
             if (state.rpm < MIN_IDLE) state.rpm = MIN_IDLE;
 
-            // 3. Rev Limiter
-            if (state.rpm > MAX_RPM) {
-                state.rpm = MAX_RPM - 150; // Hard cut limiter
+            // 3. Rev Limiter (Physics Limit is REV_LIMIT = 5000)
+            if (state.rpm > REV_LIMIT) {
+                state.rpm = REV_LIMIT - 50; // Hard cut limiter
             }
 
-            // 4. Calculate Speed based on RPM and Gear Ratio
-            let calculatedSpeed = (state.rpm / MAX_RPM) * topSpeedCurrentGear;
+            // 4. Calculate Speed based on RPM relative to REV_LIMIT
+            // Formula: (RPM / REV_LIMIT) * TOP_SPEED_IN_GEAR
+            let calculatedSpeed = (state.rpm / REV_LIMIT) * topSpeedCurrentGear;
 
             state.speed = calculatedSpeed;
 
@@ -496,8 +494,8 @@
         }
 
         function updateUI() {
-            // Update RPM Needle
-            const rpmAngle = valueToAngle(state.rpm, MAX_RPM);
+            // Update RPM Needle (Angle based on Visual Gauge Scale)
+            const rpmAngle = valueToAngle(state.rpm, MAX_RPM_GAUGE);
             rpmNeedle.style.transform = `translate(-50%, -50%) rotate(${rpmAngle + 90}deg)`;
             
             // Format RPM text - Exact Integer
@@ -541,17 +539,21 @@
             const newGear = state.gear + dir;
             if (newGear < 1 || newGear > MAX_GEAR) return;
 
-            // Simulate Shift: RPM change
+            // Simulate Shift: RPM change based on Ratios defined at REV_LIMIT
             const oldTop = GEAR_TOPS[state.gear];
             const newTop = GEAR_TOPS[newGear];
             
             state.gear = newGear;
             
             // Calculate new RPM to maintain current speed
+            // Speed = (RPM / REV_LIMIT) * Top
+            // RPM = (Speed / Top) * REV_LIMIT
+            // Since we maintain speed: RPM_new = RPM_old * (Top_old / Top_new)
+            
             let newRPM = state.rpm * (oldTop / newTop);
             
-            // Clamp RPM
-            if (newRPM > MAX_RPM) newRPM = MAX_RPM;
+            // Clamp RPM to physics limit
+            if (newRPM > REV_LIMIT) newRPM = REV_LIMIT;
             if (newRPM < MIN_IDLE) newRPM = MIN_IDLE;
             
             state.rpm = newRPM;

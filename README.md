@@ -1,1 +1,5 @@
-Basic speedometer minigame made with Gemini 3.0 PRO
+# Speedometer - A simple minigame
+
+Speedometer is a simple gauge minigame made for car enthusiasts.
+
+Created with Gemini 3.0 Pro
